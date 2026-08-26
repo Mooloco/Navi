@@ -1,0 +1,41 @@
+# =============================================================
+#  Navi Docker Compose 项目
+#
+#  用法:
+#    1. 复制 .env.example 为 .env,按需修改 NAVI_BRANCH / NAVI_PORT
+#    2. 启动:
+#       main(完整功能,应用 + 浏览器容器):
+#         docker compose --profile main up -d --build
+#       lite(轻量,仅应用容器,浏览器容器不部署):
+#         docker compose --profile lite up -d --build
+#    3. 访问 http://<主机IP>:8000 ,管理页 /admin(默认密码 admin123)
+# =============================================================
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.${NAVI_BRANCH:-main}
+    image: mooloco/navi:${NAVI_BRANCH:-main}
+    container_name: navi-app
+    ports:
+      - "${NAVI_PORT:-8000}:8000"
+    environment:
+      - MOOLO_NAV_DB=/data/nav.db
+      - MOOLO_NAV_CACHE=/data/favicons
+      - NAVI_BROWSER_CDP=ws://browser:3000
+    volumes:
+      - navi-data:/data
+    restart: unless-stopped
+
+  browser:
+    image: browserless/chrome:latest
+    container_name: navi-browser
+    environment:
+      - MAX_CONCURRENT_SESSIONS=2
+      - CONNECTION_TIMEOUT=30000
+    restart: unless-stopped
+    profiles: ["main"]
+
+volumes:
+  navi-data:

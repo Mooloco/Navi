@@ -1,0 +1,21 @@
+# =============================================================
+#  Navi 镜像 - lite 分支(轻量版)
+#  无浏览器功能,仅轻量正则抓取,镜像约 150MB
+# =============================================================
+FROM python:3.13-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app ./app
+COPY static ./static
+
+ENV MOOLO_NAV_DB=/data/nav.db \
+    MOOLO_NAV_CACHE=/data/favicons
+
+VOLUME /data
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
