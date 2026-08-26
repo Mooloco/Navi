@@ -1,18 +1,30 @@
-const state = { services: [], editing: false, editId: null };
+const state = {
+  services: [],
+  editing: false,
+  editId: null,
+  isAdmin: false,
+  token: localStorage.getItem("navi_token") || null,
+};
 
 const $ = (sel) => document.querySelector(sel);
 const app = $("#app");
 const dlg = $("#dialog");
 const form = dlg.querySelector("form");
+const pwdDlg = $("#pwd-dialog");
 
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 async function api(path, opts = {}) {
-  const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-  });
+  const headers = { "Content-Type": "application/json" };
+  if (state.token) headers["Authorization"] = "Bearer " + state.token;
+  const res = await fetch(path, { headers, ...opts });
+  if (res.status === 401) {
+    state.token = null;
+    localStorage.removeItem("navi_token");
+    if (state.isAdmin) showLogin();
+    throw new Error("未授权");
+  }
   if (!res.ok) {
     let msg = res.statusText;
     try { const j = await res.json(); msg = j.detail || msg; } catch {}
@@ -20,6 +32,79 @@ async function api(path, opts = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
+
+/* ---------- 启动 ---------- */
+
+async function init() {
+  const isAdminPage = location.pathname === "/admin";
+  state.isAdmin = isAdminPage;
+  document.title = isAdminPage ? "Navi · 管理" : "Navi";
+  if (isAdminPage) {
+    if (state.token) {
+      try {
+        await api("/api/admin/check");
+        enterAdmin();
+        return;
+      } catch (e) { /* token 失效,showLogin 已触发 */ }
+    }
+    showLogin();
+  } else {
+    $("#tools").style.display = "none";
+    await load();
+  }
+}
+
+function enterAdmin() {
+  $("#tools").style.display = "flex";
+  $("#btn-edit").textContent = "✎ 编辑";
+  state.editing = false;
+  load().catch((e) => {
+    app.innerHTML = `<div class="empty">加载失败: ${esc(e.message)}</div>`;
+  });
+}
+
+function showLogin() {
+  $("#tools").style.display = "none";
+  app.innerHTML = `
+    <div class="login-box">
+      <div class="login-logo">🧭</div>
+      <h2>Navi 管理</h2>
+      <p>请输入管理密码</p>
+      <input type="password" id="login-pass" autocomplete="current-password" placeholder="管理密码">
+      <button id="login-btn" class="tool-btn primary">登 录</button>
+      <div class="login-err"></div>
+      <a href="/" class="login-back">← 返回导航页</a>
+    </div>`;
+  const input = $("#login-pass");
+  const errBox = document.querySelector(".login-err");
+  const doLogin = async () => {
+    const pass = input.value;
+    if (!pass) return;
+    errBox.textContent = "";
+    try {
+      const res = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pass }),
+      });
+      if (!res.ok) {
+        errBox.textContent = "密码错误,请重试";
+        return;
+      }
+      const data = await res.json();
+      state.token = data.token;
+      localStorage.setItem("navi_token", data.token);
+      enterAdmin();
+    } catch (e) {
+      errBox.textContent = "登录失败: " + e.message;
+    }
+  };
+  $("#login-btn").onclick = doLogin;
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+  input.focus();
+}
+
+/* ---------- 服务列表 ---------- */
 
 async function load() {
   state.services = await api("/api/services");
@@ -54,7 +139,6 @@ function fallbackIcon(box) {
 }
 
 function buildIcon(s, box) {
-  // 1. 显式设定的图标
   if (s.icon) {
     if (s.icon.startsWith("http")) {
       const img = document.createElement("img");
@@ -69,7 +153,6 @@ function buildIcon(s, box) {
     }
     return;
   }
-  // 2. 未设定 → 走后端 favicon 代理(磁盘 + 浏览器双层缓存)
   let origin = "";
   try { origin = new URL(s.url).origin; } catch { fallbackIcon(box); return; }
   const img = document.createElement("img");
@@ -114,7 +197,7 @@ function card(s) {
   }
   el.appendChild(info);
 
-  if (state.editing) {
+  if (state.isAdmin && state.editing) {
     const actions = document.createElement("div");
     actions.className = "actions";
     const btnE = document.createElement("button");
@@ -181,7 +264,7 @@ function categoryValue() {
 
 form["category-select"].addEventListener("change", syncCatInput);
 
-/* ---------- 弹窗 ---------- */
+/* ---------- 服务弹窗 ---------- */
 
 function openAdd() {
   state.editId = null;
@@ -240,7 +323,10 @@ dlg.addEventListener("close", async () => {
 /* ---------- 导出 / 导入 ---------- */
 
 async function exportJson() {
-  const res = await fetch("/api/export");
+  const res = await fetch("/api/export", {
+    headers: state.token ? { Authorization: "Bearer " + state.token } : {},
+  });
+  if (!res.ok) { alert("导出失败: " + res.status); return; }
   const blob = await res.blob();
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -264,11 +350,47 @@ $("#file-import").addEventListener("change", async (e) => {
   e.target.value = "";
 });
 
+/* ---------- 改密码 / 退出 ---------- */
+
+$("#btn-pwd").addEventListener("click", () => {
+  pwdDlg.querySelector("form").reset();
+  pwdDlg.showModal();
+});
+
+pwdDlg.addEventListener("close", async () => {
+  if (pwdDlg.returnValue !== "ok") return;
+  const f = pwdDlg.querySelector("form");
+  const oldP = f.old.value;
+  const newP = f.new.value;
+  const confirmP = f.confirm.value;
+  if (newP.length < 6) { alert("新密码至少 6 位"); return; }
+  if (newP !== confirmP) { alert("两次输入的新密码不一致"); return; }
+  try {
+    await api("/api/admin/password", {
+      method: "POST",
+      body: JSON.stringify({ old_password: oldP, new_password: newP }),
+    });
+    alert("密码已修改 ✓");
+    f.reset();
+  } catch (e) {
+    alert("修改失败: " + e.message);
+  }
+});
+
+$("#btn-logout").addEventListener("click", async () => {
+  try { await api("/api/admin/logout", { method: "POST" }); } catch {}
+  state.token = null;
+  localStorage.removeItem("navi_token");
+  location.href = "/";
+});
+
+/* ---------- 事件绑定 ---------- */
+
 $("#btn-edit").addEventListener("click", toggleEdit);
 $("#btn-export").addEventListener("click", exportJson);
 $("#btn-import").addEventListener("click", () => $("#file-import").click());
 $("#btn-add").addEventListener("click", openAdd);
 
-load().catch((e) => {
+init().catch((e) => {
   app.innerHTML = `<div class="empty">加载失败: ${esc(e.message)}</div>`;
 });

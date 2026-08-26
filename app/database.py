@@ -17,6 +17,11 @@ CREATE TABLE IF NOT EXISTS services (
     sort_order  INTEGER DEFAULT 0,
     created_at  TEXT DEFAULT (datetime('now', 'localtime'))
 );
+
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
@@ -87,3 +92,20 @@ def replace_all(services: list[dict]) -> int:
             services,
         )
     return len(services)
+
+
+def get_setting(key: str) -> str | None:
+    with closing(_connect()) as conn:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?", (key,)
+        ).fetchone()
+    return row["value"] if row else None
+
+
+def set_setting(key: str, value: str) -> None:
+    with closing(_connect()) as conn, conn:
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
