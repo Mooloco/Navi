@@ -36,7 +36,7 @@ services:
       - MOOLO_NAV_CACHE=/data/favicons
       - NAVI_BROWSER_CDP=ws://browser:3000
     volumes:
-      - navi-data:/data
+      - ${NAVI_DATA:-./data}:/data    # bind mount: host folder -> /data
     restart: unless-stopped
 
   browser:
@@ -44,9 +44,6 @@ services:
     container_name: navi-browser
     restart: unless-stopped
     profiles: ["main"]      # deployed only in main mode
-
-volumes:
-  navi-data:
 ```
 
 `.env`:
@@ -54,6 +51,7 @@ volumes:
 ```ini
 NAVI_BRANCH=main   # main (full) | lite (lightweight, no browser)
 NAVI_PORT=8000
+NAVI_DATA=./data   # host folder for data (SQLite + icon cache)
 ```
 
 Start:
