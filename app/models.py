@@ -32,3 +32,12 @@ class ServiceUpdate(BaseModel):
     @classmethod
     def url_scheme(cls, v: str | None) -> str | None:
         return _normalize_url(v) if v is not None else None
+
+
+class AdminLogin(BaseModel):
+    password: str
+
+
+class AdminPassword(BaseModel):
+    old_password: str
+    new_password: str = Field(..., min_length=6)
