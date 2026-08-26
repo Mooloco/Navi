@@ -113,6 +113,7 @@ async function load() {
 
 const SVG_UP = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
 const SVG_DOWN = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+const SVG_EDIT = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>';
 
 function render() {
   const cats = [...new Set(state.services.map((s) => s.category))];
@@ -130,6 +131,11 @@ function render() {
     hBox.className = "cat-head";
     hBox.appendChild(h);
     if (state.isAdmin && state.editing) {
+      const rename = document.createElement("button");
+      rename.className = "sort-btn";
+      rename.title = "重命名分类";
+      rename.innerHTML = SVG_EDIT;
+      rename.onclick = () => renameCategory(cat);
       const up = document.createElement("button");
       up.className = "sort-btn";
       up.title = "上移分类";
@@ -140,7 +146,7 @@ function render() {
       down.title = "下移分类";
       down.innerHTML = SVG_DOWN;
       down.onclick = () => moveCategory(cat, 1);
-      hBox.append(up, down);
+      hBox.append(rename, up, down);
     }
     const grid = document.createElement("div");
     grid.className = "grid";
@@ -250,7 +256,7 @@ function card(s) {
   return el;
 }
 
-/* ---------- 排序:卡片(随机数 10~200,取中间值/重置)/ 分类 ---------- */
+/* ---------- 排序:卡片(随机数 100~500,取中间值/重置)/ 分类 ---------- */
 
 function reorderPayload() {
   const cats = [...new Set(state.services.map((s) => s.category))];
@@ -283,13 +289,13 @@ function moveCard(id, dir) {
   const prev = target > 0 ? inCat[target - 1].sort_order : null;
   const next = target < inCat.length - 1 ? inCat[target + 1].sort_order : null;
   let newSort = null;
-  if (prev === null && next !== null) newSort = next > 10 ? next - 1 : null;          // 移到最前
-  else if (next === null && prev !== null) newSort = prev < 200 ? prev + 1 : null;    // 移到最后
+  if (prev === null && next !== null) newSort = next > 100 ? next - 1 : null;          // 移到最前
+  else if (next === null && prev !== null) newSort = prev < 500 ? prev + 1 : null;    // 移到最后
   else if (prev !== null && next !== null && next - prev >= 2) newSort = prev + Math.floor((next - prev) / 2); // 中间有空隙
   if (newSort === null) {
-    // 无整数可用(如 23 与 24 之间):重置该分类全部随机数,均匀分配,目标顺序不变
+    // 无整数可用:重置该分类全部随机数,均匀分配,目标顺序不变
     const n = inCat.length;
-    inCat.forEach((s, j) => { s.sort_order = n > 1 ? Math.round(10 + (j * 190) / (n - 1)) : 10; });
+    inCat.forEach((s, j) => { s.sort_order = n > 1 ? Math.round(100 + (j * 400) / (n - 1)) : 100; });
   } else {
     item.sort_order = newSort;
   }
@@ -312,6 +318,17 @@ function moveCategory(catName, dir) {
   [cats[i], cats[j]] = [cats[j], cats[i]];
   state.services.sort((a, b) => cats.indexOf(a.category) - cats.indexOf(b.category));
   saveOrder().catch((e) => alert("排序保存失败: " + e.message));
+}
+
+function renameCategory(oldName) {
+  const newName = prompt("将分类「" + oldName + "」重命名为:", oldName);
+  if (!newName || !newName.trim() || newName.trim() === oldName) return;
+  api("/api/category/rename", {
+    method: "POST",
+    body: JSON.stringify({ old: oldName, new: newName.trim() }),
+  })
+    .then(() => load())
+    .catch((e) => alert("重命名失败: " + e.message));
 }
 
 function toggleEdit() {

@@ -4,6 +4,16 @@
 
 🔗 GitHub: https://github.com/Mooloco/Navi
 
+## Features
+
+- Category-grouped service cards, sortable with ↑↓ buttons (persisted)
+- Sort value mechanism: each card gets a 10~200 sort value (independent per category); moving picks the mid-value of the target gap, auto re-balances the category when no integer space remains
+- Auto favicon fetching (browser-based in `main` mode) with icon cache management: refresh a single icon / clear all caches
+- Admin auth at `/admin` (default password `admin123` — change it after first login)
+- Web-based CRUD, custom categories, JSON import/export
+- URL scheme auto-completion (`192.168.1.1:8080` → `http://192.168.1.1:8080`)
+- SQLite persistence, survives restarts
+
 ## Tags
 
 | Tag | Description | Size |
