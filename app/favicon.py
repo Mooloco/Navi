@@ -6,8 +6,6 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 
-from . import browser
-
 CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "favicons"
 USER_AGENT = "Mozilla/5.0 (Navi/0.1)"
 
@@ -199,17 +197,7 @@ async def fetch_favicon(url: str) -> tuple[bytes, str] | None:
             pass
         fail.unlink(missing_ok=True)
 
-    # 2. 浏览器模拟(主路径):真实渲染,像浏览器一样解析 favicon
-    try:
-        got = await browser.get_favicon_bytes(url)
-        if got:
-            data, ext = got
-            _save_cache(origin, data, ext)
-            return data, EXT_MEDIA[ext]
-    except Exception:
-        pass
-
-    # 3. 轻量兜底:抓页面 HTML,解析 icon 声明;没有则追踪入口链接(meta refresh / a href)
+    # 2. 轻量抓取:抓页面 HTML,解析 icon 声明;没有则追踪入口链接(meta refresh / a href)
     pages = [url] if url.startswith(origin) else [url, origin + "/"]
     page_html = None
     page_url = None

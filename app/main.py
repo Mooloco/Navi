@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import browser, database, favicon
+from . import database, favicon
 from .models import ServiceCreate, ServiceUpdate
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -16,9 +16,7 @@ STATIC_DIR = BASE_DIR / "static"
 async def lifespan(app: FastAPI):
     database.init_db()
     await favicon.startup()
-    await browser.startup()
     yield
-    await browser.shutdown()
     await favicon.shutdown()
 
 
