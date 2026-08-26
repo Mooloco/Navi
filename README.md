@@ -37,6 +37,31 @@ http://<服务器IP>:8000/admin     ← 管理页(密码 admin123,请立即修�
 
 > 重复执行 `install.sh` = 拉取最新代码并重启(可用于升级)。
 
+## 🐳 Docker 部署
+
+```bash
+# 1. 拉代码
+git clone https://github.com/Mooloco/Navi.git && cd Navi
+
+# 2. 配置(可选,默认 main + 8000 端口)
+cp .env.example .env   # 修改 NAVI_BRANCH / NAVI_PORT
+
+# 3. 启动
+# main 完整版(应用 + 浏览器容器,全功能图标抓取):
+docker compose --profile main up -d --build
+# lite 轻量版(仅应用容器,无浏览器):
+docker compose --profile lite up -d --build
+
+# 4. 访问 http://<主机IP>:8000 ,管理页 /admin(默认密码 admin123)
+```
+
+要点:
+
+- 一个 `.env` 变量 `NAVI_BRANCH` 决定部署形态:main 带浏览器容器,lite 不部署浏览器容器
+- 数据持久化在数据卷 `navi-data`(SQLite + 图标缓存),删容器数据不丢
+- main 模式应用镜像**不含浏览器内核**(~442MB),浏览器功能由独立 `browserless/chrome` 容器经 CDP 提供,可独立升级
+- 升级:重新执行 `docker compose --profile <分支> up -d --build`
+
 ## 🛠 手动部署
 
 ```bash
@@ -101,10 +126,10 @@ Navi/
 - [x] 自动图标抓取(多层策略 + 浏览器模拟)
 - [x] 网页编辑 + JSON 导入/导出
 - [x] 管理认证(/admin 登录、改密码)
+- [x] Docker 镜像 + Compose 部署(main/lite 按分支分流)
 - [ ] 在线状态检测(卡片绿点/红点)
 - [ ] 搜索框
 - [ ] 深色模式
-- [ ] Docker 镜像
 - [ ] DNS 记录 + OpenResty 反向代理(统一 80 端口入口)
 
 ## ⚠️ 安全提示
