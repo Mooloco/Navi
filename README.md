@@ -39,6 +39,61 @@ http://<服务器IP>:8000/admin     ← 管理页(密码 admin123,请立即修�
 
 ## 🐳 Docker 部署
 
+### 方式一:使用 Docker Hub 现成镜像(推荐,免构建)
+
+不用克隆代码,直接创建 `docker-compose.yml`:
+
+```yaml
+services:
+  app:
+    image: mooloco/navi:${NAVI_BRANCH:-main}
+    container_name: navi-app
+    ports:
+      - "${NAVI_PORT:-8000}:8000"
+    environment:
+      - MOOLO_NAV_DB=/data/nav.db
+      - MOOLO_NAV_CACHE=/data/favicons
+      - NAVI_BROWSER_CDP=ws://browser:3000
+    volumes:
+      - navi-data:/data
+    restart: unless-stopped
+
+  browser:
+    image: browserless/chrome:latest
+    container_name: navi-browser
+    restart: unless-stopped
+    profiles: ["main"]      # 仅 main 模式部署
+
+volumes:
+  navi-data:
+```
+
+配置 `.env`(可选,默认 main + 8000):
+
+```ini
+NAVI_BRANCH=main   # main(完整)/ lite(轻量,无浏览器)
+NAVI_PORT=8000
+```
+
+启动(不加 `--build`,直接拉取现成镜像):
+
+```bash
+docker compose --profile main up -d    # main 完整版(应用 + 浏览器容器)
+docker compose --profile lite up -d    # lite 轻量版(仅应用容器)
+```
+
+升级:
+
+```bash
+docker compose --profile ${NAVI_BRANCH:-main} up -d --pull always
+```
+
+访问 `http://<主机IP>:8000`,管理页 `/admin`(默认密码 `admin123`,请立即修改)。
+
+> 已克隆本仓库的话也可以免构建:先 `docker compose --profile main pull` 拉取现成镜像,再 `docker compose --profile main up -d`(不触发构建)。
+
+### 方式二:源码构建(需要改代码时)
+
 ```bash
 # 1. 拉代码
 git clone https://github.com/Mooloco/Navi.git && cd Navi
@@ -46,11 +101,8 @@ git clone https://github.com/Mooloco/Navi.git && cd Navi
 # 2. 配置(可选,默认 main + 8000 端口)
 cp .env.example .env   # 修改 NAVI_BRANCH / NAVI_PORT
 
-# 3. 启动
-# main 完整版(应用 + 浏览器容器,全功能图标抓取):
-docker compose --profile main up -d --build
-# lite 轻量版(仅应用容器,无浏览器):
-docker compose --profile lite up -d --build
+# 3. 启动(带 --build 构建自己的镜像)
+docker compose --profile main up -d --build    # 或 --profile lite
 
 # 4. 访问 http://<主机IP>:8000 ,管理页 /admin(默认密码 admin123)
 ```
