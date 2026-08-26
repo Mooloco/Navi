@@ -16,6 +16,7 @@ STATIC_DIR = BASE_DIR / "static"
 async def lifespan(app: FastAPI):
     database.init_db()
     auth.ensure_default_password()
+    database.migrate_sort_values()  # 旧数据排序值迁移(10~200 随机数)
     await favicon.startup()
     yield
     await favicon.shutdown()
@@ -139,19 +140,19 @@ def favicon_clear_all():
 
 @app.post("/api/reorder", dependencies=[Depends(require_admin)])
 def reorder(payload: dict):
-    """保存分类顺序 + 各分类内服务顺序。"""
+    """保存分类顺序 + 各分类内服务排序随机数。"""
     categories = payload.get("categories") or []
-    service_ids = payload.get("service_ids") or {}
-    if not isinstance(categories, list) or not isinstance(service_ids, dict):
+    services = payload.get("services") or {}
+    if not isinstance(categories, list) or not isinstance(services, dict):
         raise HTTPException(400, "参数格式错误")
-    try:
-        cleaned = {
-            str(k): [int(i) for i in v]
-            for k, v in service_ids.items()
-            if isinstance(v, list)
-        }
-    except (TypeError, ValueError):
-        raise HTTPException(400, "参数格式错误")
+    cleaned: dict[str, list[dict]] = {}
+    for k, v in services.items():
+        if not isinstance(v, list):
+            continue
+        try:
+            cleaned[str(k)] = [{"id": int(i["id"]), "sort": int(i["sort"])} for i in v]
+        except (TypeError, ValueError, KeyError):
+            raise HTTPException(400, "参数格式错误")
     database.reorder([str(c) for c in categories], cleaned)
     return {"ok": True}
 
