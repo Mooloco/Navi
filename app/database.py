@@ -61,19 +61,39 @@ def get_service(sid: int) -> dict | None:
     return dict(row) if row else None
 
 
-SORT_MIN, SORT_MAX = 10, 200  # 排序随机数范围(分类内独立)
+SORT_MIN, SORT_MAX = 100, 500  # 排序随机数范围(分类内独立)
+SORT_STEP = 5  # 新服务排末尾时的间隔
+SORT_TAIL_MAX = 480  # 重置/迁移时现有服务的分布上限,481~500 留给后续新增(每次 +5,约 4 次)
 
 
 def _pick_sort_value(conn, category: str) -> int:
-    """为新服务分配分类内未占用的随机排序值(10~200)。"""
-    used = {r[0] for r in conn.execute(
-        "SELECT sort_order FROM services WHERE category = ?", (category,))}
-    candidates = [v for v in range(SORT_MIN, SORT_MAX + 1) if v not in used]
-    return random.choice(candidates) if candidates else random.randint(SORT_MIN, SORT_MAX)
+    """为新服务分配排序值:默认排在分类末尾(当前最大 + 5)。
+
+    分类空间不足时(末尾值 + 5 超上限),整体重排该分类:
+    现有服务按当前顺序均匀分布到 100~480(末尾留槽位),新服务排 485。
+    之后新服务依次 +5 递增(485/490/495/500),连续新增约 4 次才需再次重排。
+    """
+    rows = sorted(
+        conn.execute(
+            "SELECT id, sort_order FROM services WHERE category = ?", (category,)
+        ).fetchall(),
+        key=lambda r: r["sort_order"],
+    )
+    if not rows:
+        return SORT_MIN
+    maxv = rows[-1]["sort_order"]
+    if maxv + SORT_STEP <= SORT_MAX:
+        return maxv + SORT_STEP
+    # 空间不足:整体重置,现有均匀分布到 100~480,新服务排末尾槽位
+    n = len(rows)
+    for j, r in enumerate(rows):
+        v = SORT_MIN + round(j * (SORT_TAIL_MAX - SORT_MIN) / (n - 1)) if n > 1 else SORT_MIN
+        conn.execute("UPDATE services SET sort_order = ? WHERE id = ?", (v, r["id"]))
+    return SORT_TAIL_MAX + SORT_STEP
 
 
 def migrate_sort_values() -> int:
-    """旧版 0-based 排序值迁移为 10~200 排序随机数(按当前顺序均匀分配)。"""
+    """旧版排序值迁移为 100~500 排序随机数(按当前顺序均匀分配)。"""
     with closing(_connect()) as conn, conn:
         rows = conn.execute("SELECT id, category, sort_order FROM services").fetchall()
         need = any(r["sort_order"] < SORT_MIN or r["sort_order"] > SORT_MAX for r in rows)
@@ -87,10 +107,31 @@ def migrate_sort_values() -> int:
             items.sort(key=lambda r: (r["sort_order"], r["id"]))
             n = len(items)
             for j, r in enumerate(items):
-                v = SORT_MIN + round(j * (SORT_MAX - SORT_MIN) / (n - 1)) if n > 1 else SORT_MIN
+                v = SORT_MIN + round(j * (SORT_TAIL_MAX - SORT_MIN) / (n - 1)) if n > 1 else SORT_MIN
                 conn.execute("UPDATE services SET sort_order = ? WHERE id = ?", (v, r["id"]))
             total += n
         return total
+
+
+def rename_category(old: str, new: str) -> int:
+    """重命名分类:更新服务分类字段 + 分类顺序记录,返回受影响的服务数。"""
+    with closing(_connect()) as conn, conn:
+        cur = conn.execute(
+            "UPDATE services SET category = ? WHERE category = ?", (new, old)
+        )
+        n = cur.rowcount
+        try:
+            order = json.loads(get_setting("category_order") or "[]")
+        except json.JSONDecodeError:
+            order = []
+        if old in order:
+            order[order.index(old)] = new
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES ('category_order', ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (json.dumps(order, ensure_ascii=False),),
+            )
+        return n
 
 
 def add_service(data: dict) -> dict:

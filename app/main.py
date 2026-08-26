@@ -159,4 +159,15 @@ def reorder(payload: dict):
     return {"ok": True}
 
 
+@app.post("/api/category/rename", dependencies=[Depends(require_admin)])
+def rename_category(payload: dict):
+    """重命名分类。"""
+    old = (payload.get("old") or "").strip()
+    new = (payload.get("new") or "").strip()
+    if not old or not new:
+        raise HTTPException(400, "参数缺失")
+    n = database.rename_category(old, new)
+    return {"renamed": n}
+
+
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
