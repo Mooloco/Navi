@@ -33,8 +33,8 @@ def _connect() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    with closing(_connect()) as conn, conn:
-        conn.execute(SCHEMA)
+    with closing(_connect()) as conn:
+        conn.executescript(SCHEMA)  # 多条语句需 executescript
 
 
 def list_services() -> list[dict]:
