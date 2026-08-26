@@ -55,7 +55,7 @@ services:
       - MOOLO_NAV_CACHE=/data/favicons
       - NAVI_BROWSER_CDP=ws://browser:3000
     volumes:
-      - navi-data:/data
+      - ${NAVI_DATA:-./data}:/data    # 数据存宿主机指定文件夹
     restart: unless-stopped
 
   browser:
@@ -63,9 +63,6 @@ services:
     container_name: navi-browser
     restart: unless-stopped
     profiles: ["main"]      # 仅 main 模式部署
-
-volumes:
-  navi-data:
 ```
 
 配置 `.env`(可选,默认 main + 8000):
@@ -73,6 +70,7 @@ volumes:
 ```ini
 NAVI_BRANCH=main   # main(完整)/ lite(轻量,无浏览器)
 NAVI_PORT=8000
+NAVI_DATA=./data   # 数据目录(宿主机文件夹,SQLite + 图标缓存)
 ```
 
 启动(不加 `--build`,直接拉取现成镜像):

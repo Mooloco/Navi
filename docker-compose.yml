@@ -2,7 +2,7 @@
 #  Navi Docker Compose 项目
 #
 #  用法:
-#    1. 复制 .env.example 为 .env,按需修改 NAVI_BRANCH / NAVI_PORT
+#    1. 复制 .env.example 为 .env,按需修改 NAVI_BRANCH / NAVI_PORT / NAVI_DATA
 #    2. 启动:
 #       main(完整功能,应用 + 浏览器容器):
 #         docker compose --profile main up -d --build
@@ -25,7 +25,8 @@ services:
       - MOOLO_NAV_CACHE=/data/favicons
       - NAVI_BROWSER_CDP=ws://browser:3000
     volumes:
-      - navi-data:/data
+      # 数据目录:宿主机指定文件夹(SQLite + 图标缓存),默认 ./data
+      - ${NAVI_DATA:-./data}:/data
     restart: unless-stopped
 
   browser:
@@ -36,6 +37,3 @@ services:
       - CONNECTION_TIMEOUT=30000
     restart: unless-stopped
     profiles: ["main"]
-
-volumes:
-  navi-data:
