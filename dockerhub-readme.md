@@ -7,7 +7,8 @@
 ## Features
 
 - Category-grouped service cards, sortable with ↑↓ buttons (persisted)
-- Sort value mechanism: each card gets a 10~200 sort value (independent per category); moving picks the mid-value of the target gap, auto re-balances the category when no integer space remains
+- Sort value mechanism: each card gets a 100~500 sort value (independent per category); new services append to the end (+5 increments), moving picks the mid-value of the target gap, re-balances the category only when no space remains
+- Category rename with a ✎ button in edit mode (services follow automatically)
 - Auto favicon fetching (browser-based in `main` mode) with icon cache management: refresh a single icon / clear all caches
 - Admin auth at `/admin` (default password `admin123` — change it after first login)
 - Web-based CRUD, custom categories, JSON import/export
