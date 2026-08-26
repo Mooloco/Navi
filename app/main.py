@@ -125,4 +125,35 @@ async def favicon_api(u: str):
     )
 
 
+@app.delete("/api/favicon", dependencies=[Depends(require_admin)])
+def favicon_clear(u: str):
+    """清除指定服务的图标缓存(重新抓取时用)。"""
+    return {"cleared": favicon.clear_favicon(u)}
+
+
+@app.delete("/api/favicon/all", dependencies=[Depends(require_admin)])
+def favicon_clear_all():
+    """一键清空全部图标缓存。"""
+    return {"cleared": favicon.clear_all()}
+
+
+@app.post("/api/reorder", dependencies=[Depends(require_admin)])
+def reorder(payload: dict):
+    """保存分类顺序 + 各分类内服务顺序。"""
+    categories = payload.get("categories") or []
+    service_ids = payload.get("service_ids") or {}
+    if not isinstance(categories, list) or not isinstance(service_ids, dict):
+        raise HTTPException(400, "参数格式错误")
+    try:
+        cleaned = {
+            str(k): [int(i) for i in v]
+            for k, v in service_ids.items()
+            if isinstance(v, list)
+        }
+    except (TypeError, ValueError):
+        raise HTTPException(400, "参数格式错误")
+    database.reorder([str(c) for c in categories], cleaned)
+    return {"ok": True}
+
+
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

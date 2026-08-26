@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 from contextlib import closing
@@ -38,11 +39,17 @@ def init_db() -> None:
 
 
 def list_services() -> list[dict]:
+    """按自定义分类顺序 + 分类内 sort_order 排序返回。"""
     with closing(_connect()) as conn:
-        rows = conn.execute(
-            "SELECT * FROM services ORDER BY category, sort_order, id"
-        ).fetchall()
-    return [dict(r) for r in rows]
+        rows = conn.execute("SELECT * FROM services").fetchall()
+    services = [dict(r) for r in rows]
+    try:
+        cat_order = json.loads(get_setting("category_order") or "[]")
+    except json.JSONDecodeError:
+        cat_order = []
+    rank = {c: i for i, c in enumerate(cat_order)}
+    services.sort(key=lambda s: (rank.get(s["category"], 10**9), s["sort_order"], s["id"]))
+    return services
 
 
 def get_service(sid: int) -> dict | None:
@@ -108,4 +115,20 @@ def set_setting(key: str, value: str) -> None:
             "INSERT INTO settings (key, value) VALUES (?, ?) "
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             (key, value),
+        )
+
+
+def reorder(categories: list[str], service_ids: dict[str, list[int]]) -> None:
+    """保存分类顺序 + 各分类内服务顺序(单事务)。"""
+    with closing(_connect()) as conn, conn:
+        for cat, ids in service_ids.items():
+            for i, sid in enumerate(ids):
+                conn.execute(
+                    "UPDATE services SET sort_order = ?, category = ? WHERE id = ?",
+                    (i, cat, sid),
+                )
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('category_order', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (json.dumps(categories, ensure_ascii=False),),
         )

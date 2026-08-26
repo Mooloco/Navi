@@ -60,6 +60,31 @@ def parse_origin(url: str) -> str | None:
     return None
 
 
+def clear_favicon(url: str) -> int:
+    """清除指定服务的图标缓存(按 origin),返回删除的文件数。"""
+    origin = parse_origin(url)
+    if origin is None:
+        return 0
+    h = hashlib.md5(origin.encode()).hexdigest()
+    n = 0
+    for p in CACHE_DIR.glob(h + ".*"):
+        p.unlink(missing_ok=True)
+        n += 1
+    return n
+
+
+def clear_all() -> int:
+    """清空全部图标缓存,返回删除的文件数。"""
+    n = 0
+    if not CACHE_DIR.exists():
+        return 0
+    for p in CACHE_DIR.iterdir():
+        if p.is_file():
+            p.unlink(missing_ok=True)
+            n += 1
+    return n
+
+
 def _ext_from_ctype(ctype: str) -> str | None:
     ctype = ctype.lower().split(";")[0].strip()
     mapping = {
