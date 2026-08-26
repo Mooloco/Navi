@@ -18,9 +18,9 @@ import os
 import time
 
 _pw = None
-_browser: Browser | None = None
+_browser = None  # type: ignore[assignment]
 _last_used = 0.0
-_watchdog_task: asyncio.Task | None = None
+_watchdog_task = None  # type: ignore[assignment]
 
 IDLE_TIMEOUT = 30  # 闲置多少秒后自动关闭浏览器
 # 远程 CDP 端点(容器部署时指向浏览器容器);为空则本地拉起 Chromium
