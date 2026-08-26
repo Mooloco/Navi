@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Navi</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="logo">🧭</span>
+    <h1>Navi</h1>
+  </div>
+  <div class="tools">
+    <button id="btn-edit" class="tool-btn">✎ 编辑</button>
+    <button id="btn-export" class="tool-btn" title="导出服务清单为 JSON">⤓ 导出</button>
+    <button id="btn-import" class="tool-btn" title="从 JSON 导入服务清单">⤒ 导入</button>
+    <input type="file" id="file-import" accept=".json,application/json" hidden>
+    <button id="btn-add" class="tool-btn primary">+ 新增</button>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<dialog id="dialog">
+  <form method="dialog">
+    <h3 id="dialog-title">新增服务</h3>
+    <label>名称 <input name="name" required maxlength="50" placeholder="如:群晖 Openlist"></label>
+    <label>地址 <input name="url" required placeholder="http://192.168.1.20:5255"></label>
+    <label>描述 <input name="description" placeholder="可选,一句话说明"></label>
+    <label>图标 <input name="icon" placeholder="留空自动用网站图标;或填 emoji / 图片 URL"></label>
+    <label>分类
+      <select name="category-select"></select>
+      <input name="category" placeholder="输入新分类名称,如:工作" hidden>
+    </label>
+    <div class="dialog-actions">
+      <button value="cancel" class="tool-btn">取消</button>
+      <button value="ok" class="tool-btn primary">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
