@@ -1,0 +1,24 @@
+# =============================================================
+#  Navi 镜像 - main 分支(完整功能)
+#  应用容器:纯 Python,不含浏览器二进制
+#  浏览器功能通过 CDP 连接独立的 browserless/chrome 容器
+#  镜像大小约 200MB(对比自带 Chromium 约 1.5GB)
+# =============================================================
+FROM python:3.13-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt playwright
+
+COPY app ./app
+COPY static ./static
+
+ENV MOOLO_NAV_DB=/data/nav.db \
+    MOOLO_NAV_CACHE=/data/favicons \
+    NAVI_BROWSER_CDP=ws://browser:3000
+
+VOLUME /data
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

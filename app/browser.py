@@ -14,6 +14,7 @@ except ImportError:
     Browser = None  # type: ignore
 
 import asyncio
+import os
 import time
 
 _pw = None
@@ -22,6 +23,8 @@ _last_used = 0.0
 _watchdog_task: asyncio.Task | None = None
 
 IDLE_TIMEOUT = 30  # 闲置多少秒后自动关闭浏览器
+# 远程 CDP 端点(容器部署时指向浏览器容器);为空则本地拉起 Chromium
+CDP_ENDPOINT = os.environ.get("NAVI_BROWSER_CDP") or None
 
 # 浏览器标准 favicon 选择:优先普通 icon,apple-touch-icon 垫底
 FAVICON_JS = """() => {
@@ -47,15 +50,22 @@ def _ext_from_ctype(ctype: str) -> str | None:
 
 
 async def _ensure_browser() -> None:
-    """懒启动:首次抓取时才拉起浏览器。"""
+    """懒启动:首次抓取时才连接/拉起浏览器。
+
+    设置了 NAVI_BROWSER_CDP 时连接远程浏览器容器(Docker 部署);
+    否则本地拉起 Chromium(裸机部署)。
+    """
     global _pw, _browser
     if _browser is not None:
         return
     _pw = await async_playwright().start()
-    _browser = await _pw.chromium.launch(
-        headless=True,
-        args=["--no-sandbox", "--disable-dev-shm-usage"],
-    )
+    if CDP_ENDPOINT:
+        _browser = await _pw.chromium.connect_over_cdp(CDP_ENDPOINT)
+    else:
+        _browser = await _pw.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
 
 
 async def _close_browser() -> None:

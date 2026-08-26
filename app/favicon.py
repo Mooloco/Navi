@@ -1,4 +1,5 @@
 import hashlib
+import os
 import re
 import time
 from pathlib import Path
@@ -8,7 +9,12 @@ import httpx
 
 from . import browser
 
-CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "favicons"
+CACHE_DIR = Path(
+    os.environ.get(
+        "MOOLO_NAV_CACHE",
+        str(Path(__file__).resolve().parent.parent / "data" / "favicons"),
+    )
+)
 USER_AGENT = "Mozilla/5.0 (Navi/0.1)"
 
 ICON_EXTS = ["ico", "png", "svg", "jpg", "jpeg", "gif", "webp"]
