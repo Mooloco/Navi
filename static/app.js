@@ -207,6 +207,13 @@ function card(s) {
   const name = document.createElement("div");
   name.className = "name";
   name.textContent = s.name;
+  if (state.isAdmin && state.editing) {
+    const badge = document.createElement("span");
+    badge.className = "sort-badge";
+    badge.title = "排序随机数(10~200,小的在前)";
+    badge.textContent = s.sort_order;
+    name.appendChild(badge);
+  }
   info.appendChild(name);
   if (s.description) {
     const desc = document.createElement("div");
@@ -243,13 +250,15 @@ function card(s) {
   return el;
 }
 
-/* ---------- 排序:卡片 / 分类 ---------- */
+/* ---------- 排序:卡片(随机数 10~200,取中间值/重置)/ 分类 ---------- */
 
 function reorderPayload() {
   const cats = [...new Set(state.services.map((s) => s.category))];
-  const serviceIds = {};
-  for (const c of cats) serviceIds[c] = state.services.filter((s) => s.category === c).map((s) => s.id);
-  return { categories: cats, service_ids: serviceIds };
+  const services = {};
+  for (const c of cats) {
+    services[c] = state.services.filter((s) => s.category === c).map((s) => ({ id: s.id, sort: s.sort_order }));
+  }
+  return { categories: cats, services };
 }
 
 async function saveOrder() {
@@ -262,16 +271,36 @@ function moveCard(id, dir) {
   const idx = arr.findIndex((s) => s.id === id);
   if (idx < 0) return;
   const cat = arr[idx].category;
-  let j = idx;
-  if (dir > 0) {
-    j = idx + 1;
-    while (j < arr.length && arr[j].category !== cat) j++;
+  const inCat = arr.filter((s) => s.category === cat);
+  const ci = inCat.findIndex((s) => s.id === id);
+  const target = ci + dir;
+  if (target < 0 || target >= inCat.length) return;
+  // 取出并插入目标位置
+  const [item] = inCat.splice(ci, 1);
+  inCat.splice(target, 0, item);
+
+  // 在目标区间内挑选新排序随机数
+  const prev = target > 0 ? inCat[target - 1].sort_order : null;
+  const next = target < inCat.length - 1 ? inCat[target + 1].sort_order : null;
+  let newSort = null;
+  if (prev === null && next !== null) newSort = next > 10 ? next - 1 : null;          // 移到最前
+  else if (next === null && prev !== null) newSort = prev < 200 ? prev + 1 : null;    // 移到最后
+  else if (prev !== null && next !== null && next - prev >= 2) newSort = prev + Math.floor((next - prev) / 2); // 中间有空隙
+  if (newSort === null) {
+    // 无整数可用(如 23 与 24 之间):重置该分类全部随机数,均匀分配,目标顺序不变
+    const n = inCat.length;
+    inCat.forEach((s, j) => { s.sort_order = n > 1 ? Math.round(10 + (j * 190) / (n - 1)) : 10; });
   } else {
-    j = idx - 1;
-    while (j >= 0 && arr[j].category !== cat) j--;
+    item.sort_order = newSort;
   }
-  if (j < 0 || j >= arr.length) return;
-  [arr[idx], arr[j]] = [arr[j], arr[idx]];
+  // 按分类顺序 + 排序值重排
+  const cats = [...new Set(arr.map((s) => s.category))];
+  state.services = arr.filter((s) => s.category !== cat).concat(inCat)
+    .sort((a, b) => {
+      const ra = cats.indexOf(a.category), rb = cats.indexOf(b.category);
+      if (ra !== rb) return ra - rb;
+      return a.sort_order - b.sort_order;
+    });
   saveOrder().catch((e) => alert("排序保存失败: " + e.message));
 }
 

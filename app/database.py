@@ -1,5 +1,6 @@
 import json
 import os
+import random
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -60,12 +61,44 @@ def get_service(sid: int) -> dict | None:
     return dict(row) if row else None
 
 
+SORT_MIN, SORT_MAX = 10, 200  # 排序随机数范围(分类内独立)
+
+
+def _pick_sort_value(conn, category: str) -> int:
+    """为新服务分配分类内未占用的随机排序值(10~200)。"""
+    used = {r[0] for r in conn.execute(
+        "SELECT sort_order FROM services WHERE category = ?", (category,))}
+    candidates = [v for v in range(SORT_MIN, SORT_MAX + 1) if v not in used]
+    return random.choice(candidates) if candidates else random.randint(SORT_MIN, SORT_MAX)
+
+
+def migrate_sort_values() -> int:
+    """旧版 0-based 排序值迁移为 10~200 排序随机数(按当前顺序均匀分配)。"""
+    with closing(_connect()) as conn, conn:
+        rows = conn.execute("SELECT id, category, sort_order FROM services").fetchall()
+        need = any(r["sort_order"] < SORT_MIN or r["sort_order"] > SORT_MAX for r in rows)
+        if not need:
+            return 0
+        groups: dict[str, list] = {}
+        for r in rows:
+            groups.setdefault(r["category"], []).append(r)
+        total = 0
+        for items in groups.values():
+            items.sort(key=lambda r: (r["sort_order"], r["id"]))
+            n = len(items)
+            for j, r in enumerate(items):
+                v = SORT_MIN + round(j * (SORT_MAX - SORT_MIN) / (n - 1)) if n > 1 else SORT_MIN
+                conn.execute("UPDATE services SET sort_order = ? WHERE id = ?", (v, r["id"]))
+            total += n
+        return total
+
+
 def add_service(data: dict) -> dict:
     with closing(_connect()) as conn, conn:
         cur = conn.execute(
-            """INSERT INTO services (name, url, description, icon, category)
-               VALUES (:name, :url, :description, :icon, :category)""",
-            data,
+            """INSERT INTO services (name, url, description, icon, category, sort_order)
+               VALUES (:name, :url, :description, :icon, :category, :sort_order)""",
+            {**data, "sort_order": _pick_sort_value(conn, data["category"])},
         )
         sid = cur.lastrowid
     return get_service(sid)
@@ -118,14 +151,16 @@ def set_setting(key: str, value: str) -> None:
         )
 
 
-def reorder(categories: list[str], service_ids: dict[str, list[int]]) -> None:
-    """保存分类顺序 + 各分类内服务顺序(单事务)。"""
+def reorder(categories: list[str], services: dict[str, list[dict]]) -> None:
+    """保存分类顺序 + 各分类内服务的排序随机数。
+    services: {分类: [{"id": .., "sort": ..}, ...]} 按顺序给出
+    """
     with closing(_connect()) as conn, conn:
-        for cat, ids in service_ids.items():
-            for i, sid in enumerate(ids):
+        for cat, items in services.items():
+            for item in items:
                 conn.execute(
                     "UPDATE services SET sort_order = ?, category = ? WHERE id = ?",
-                    (i, cat, sid),
+                    (int(item["sort"]), cat, int(item["id"])),
                 )
         conn.execute(
             "INSERT INTO settings (key, value) VALUES ('category_order', ?) "
