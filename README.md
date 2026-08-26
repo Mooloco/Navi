@@ -1,50 +1,113 @@
-# Navi
+# 🧭 Navi
 
-个人服务导航页:把家里所有 IP:端口 服务收拢成一个统一入口。(项目目录名沿用例: moolo-nav)
+**个人服务导航页** —— 把家里所有 `IP:端口` 的服务收拢成一个统一入口。打开一个页面,所有服务一目了然;`/admin` 密码登录后随时增删改。
 
-## 分支
+> V1.0 定版。项目仓库: [github.com/Mooloco/Navi](https://github.com/Mooloco/Navi)
 
-- **main**(推荐):浏览器模拟图标抓取(Playwright,按需启动,闲置 30s 自动关闭)
-- **lite**:无浏览器,仅轻量正则抓取,资源占用最低(低配机器用)
+## ✨ 功能特性
 
-## 技术栈
+- **分类分组导航** — 服务按分类排列,一目了然
+- **自动图标** — 不设图标也能显示网站真实图标(浏览器模拟抓取,失败回落 🔗)
+- **管理认证** — `/admin` 密码登录(默认 `admin123`),普通页面只读
+- **网页编辑** — 登录后直接增删改服务,支持新建自定义分类
+- **JSON 导入/导出** — 数据随时备份迁移
+- **修改密码** — 管理页一键改密
+- **URL 自动补全** — 输入 `192.168.1.1:8080` 自动补 `http://`
+- **持久化存储** — SQLite 实时落盘,重启不丢
 
-- 后端:FastAPI + SQLite(数据文件 `data/nav.db`,可用环境变量 `MOOLO_NAV_DB` 覆盖)
-- 前端:原生 HTML/CSS/JS,零框架
-
-## 开发运行
+## 🚀 快速安装(Ubuntu/Debian)
 
 ```bash
+# main 分支(推荐):含浏览器图标抓取,首次安装约 1~2 分钟
+sudo bash install.sh
+
+# lite 分支:无浏览器,更省资源(低配机器用)
+sudo bash install.sh --branch lite
+
+# 自定义端口
+sudo bash install.sh --port 8080
+```
+
+装完访问:
+
+```
+http://<服务器IP>:8000           ← 导航页(只读)
+http://<服务器IP>:8000/admin     ← 管理页(密码 admin123,请立即修改)
+```
+
+> 重复执行 `install.sh` = 拉取最新代码并重启(可用于升级)。
+
+## 🛠 手动部署
+
+```bash
+git clone https://github.com/Mooloco/Navi.git
+cd Navi
+
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
+
+# main 分支额外需要浏览器(图标抓取):
+.venv/bin/pip install playwright
+.venv/bin/playwright install chromium --with-deps
+
 .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-## API
+## 📁 目录结构
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | / | 导航页 |
-| GET | /api/services | 服务列表 |
-| POST | /api/services | 新增服务 |
-| PUT | /api/services/{id} | 修改服务(部分字段) |
-| DELETE | /api/services/{id} | 删除服务 |
-| GET | /api/export | 导出全部服务(JSON 下载) |
-| POST | /api/import | 导入服务清单(整体替换) |
-
-## Docker
-
-```bash
-docker build -t moolo/nav .
-docker run -d --name moolo-nav -p 8000:8000 -v nav-data:/data moolo/nav
+```
+Navi/
+├── app/
+│   ├── main.py        # FastAPI 入口 + 路由
+│   ├── auth.py        # 密码哈希 + 会话 token
+│   ├── database.py    # SQLite 存取
+│   ├── favicon.py     # 图标抓取(多层策略 + 缓存)
+│   ├── browser.py     # Playwright 浏览器模拟(main 分支)
+│   └── models.py      # 数据模型
+├── static/            # 前端(原生 HTML/CSS/JS)
+├── install.sh         # 一键安装脚本
+├── requirements.txt
+└── Dockerfile         # Docker 版(规划中)
 ```
 
-## 路线图
+## 🔌 API
+
+| 方法 | 路径 | 说明 | 鉴权 |
+|---|---|---|---|
+| GET | / | 导航页 | - |
+| GET | /admin | 管理页(前端登录) | - |
+| POST | /api/admin/login | 登录,返回 token | - |
+| POST | /api/admin/logout | 退出登录 | token |
+| GET | /api/admin/check | 校验 token | token |
+| POST | /api/admin/password | 修改密码 | token |
+| GET | /api/services | 服务列表 | - |
+| POST | /api/services | 新增服务 | ✅ token |
+| PUT | /api/services/{id} | 修改服务 | ✅ token |
+| DELETE | /api/services/{id} | 删除服务 | ✅ token |
+| GET | /api/export | 导出 JSON | ✅ token |
+| POST | /api/import | 导入 JSON(整体替换) | ✅ token |
+| GET | /api/favicon?u=URL | 图标代理(缓存) | - |
+
+鉴权方式:`Authorization: Bearer <token>`
+
+## 🌿 分支
+
+- **main**(推荐):浏览器模拟图标抓取(Playwright,按需启动,闲置 30s 自动回收)
+- **lite**:无浏览器,仅轻量正则抓取,资源占用最低
+
+## 🗺 路线图
 
 - [x] 分类分组导航
-- [x] 网页编辑 + JSON 导出/导入
-- [ ] 在线状态检测(GET /api/health 已预留)
+- [x] 自动图标抓取(多层策略 + 浏览器模拟)
+- [x] 网页编辑 + JSON 导入/导出
+- [x] 管理认证(/admin 登录、改密码)
+- [ ] 在线状态检测(卡片绿点/红点)
 - [ ] 搜索框
 - [ ] 深色模式
-- [ ] PDC 上加 DNS 记录(nav.moolo.net)
-- [ ] OpenResty/nginx 反向代理,统一 80 端口入口
+- [ ] Docker 镜像
+- [ ] DNS 记录 + OpenResty 反向代理(统一 80 端口入口)
+
+## ⚠️ 安全提示
+
+- 默认密码 `admin123`,**首次登录后请立即修改**
+- 当前为内网 HTTP 明文传输;若暴露公网,请务必前置 HTTPS
