@@ -111,6 +111,9 @@ async function load() {
   render();
 }
 
+const SVG_UP = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
+const SVG_DOWN = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+
 function render() {
   const cats = [...new Set(state.services.map((s) => s.category))];
   app.innerHTML = "";
@@ -130,12 +133,12 @@ function render() {
       const up = document.createElement("button");
       up.className = "sort-btn";
       up.title = "上移分类";
-      up.textContent = "↑";
+      up.innerHTML = SVG_UP;
       up.onclick = () => moveCategory(cat, -1);
       const down = document.createElement("button");
       down.className = "sort-btn";
       down.title = "下移分类";
-      down.textContent = "↓";
+      down.innerHTML = SVG_DOWN;
       down.onclick = () => moveCategory(cat, 1);
       hBox.append(up, down);
     }
@@ -217,12 +220,14 @@ function card(s) {
     const actions = document.createElement("div");
     actions.className = "actions";
     const btnUp = document.createElement("button");
+    btnUp.className = "sort-btn";
     btnUp.title = "上移";
-    btnUp.textContent = "↑";
+    btnUp.innerHTML = SVG_UP;
     btnUp.onclick = () => moveCard(s.id, -1);
     const btnDown = document.createElement("button");
+    btnDown.className = "sort-btn";
     btnDown.title = "下移";
-    btnDown.textContent = "↓";
+    btnDown.innerHTML = SVG_DOWN;
     btnDown.onclick = () => moveCard(s.id, 1);
     const btnE = document.createElement("button");
     btnE.title = "编辑";
