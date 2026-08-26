@@ -18,6 +18,7 @@
     <button id="btn-import" class="tool-btn" title="从 JSON 导入服务清单">⤒ 导入</button>
     <input type="file" id="file-import" accept=".json,application/json" hidden>
     <button id="btn-add" class="tool-btn primary">+ 新增</button>
+    <button id="btn-clear-icons" class="tool-btn" title="清空图标缓存并重新抓取">🧹 图标</button>
     <button id="btn-pwd" class="tool-btn" title="修改管理密码">🔑 改密码</button>
     <button id="btn-logout" class="tool-btn" title="退出登录">退出</button>
   </div>
@@ -32,6 +33,9 @@
     <label>地址 <input name="url" required placeholder="http://192.168.1.100:8080"></label>
     <label>描述 <input name="description" placeholder="可选,一句话说明"></label>
     <label>图标 <input name="icon" placeholder="留空自动用网站图标;或填 emoji / 图片 URL"></label>
+    <div class="icon-actions">
+      <button type="button" id="btn-refresh-icon" class="tool-btn">🔄 重新抓取图标</button>
+    </div>
     <label>分类
       <select name="category-select"></select>
       <input name="category" placeholder="输入新分类名称,如:工作" hidden>

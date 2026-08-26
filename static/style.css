@@ -52,14 +52,28 @@ header {
 main { max-width: 1100px; margin: 24px auto; padding: 0 24px; }
 
 .category { margin-bottom: 28px; }
+.cat-head { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
 .category h2 {
   font-size: 15px;
   color: var(--muted);
   font-weight: 600;
-  margin-bottom: 12px;
+  margin-bottom: 0;
   padding-left: 8px;
   border-left: 3px solid var(--accent);
 }
+
+.sort-btn {
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--muted);
+  border-radius: 6px;
+  font-size: 12px;
+  width: 24px;
+  height: 22px;
+  cursor: pointer;
+  line-height: 1;
+}
+.sort-btn:hover { background: #f0f2f5; color: var(--text); }
 
 .grid {
   display: grid;
@@ -174,6 +188,8 @@ dialog select {
   background: #fff;
 }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.icon-actions { display: flex; justify-content: flex-end; margin-top: -4px; }
+.icon-actions .tool-btn { font-size: 12px; padding: 4px 10px; }
 
 .empty { text-align: center; color: var(--muted); padding: 60px 0; font-size: 14px; }
 

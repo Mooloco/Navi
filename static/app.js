@@ -123,10 +123,26 @@ function render() {
     sec.className = "category";
     const h = document.createElement("h2");
     h.textContent = cat;
+    const hBox = document.createElement("div");
+    hBox.className = "cat-head";
+    hBox.appendChild(h);
+    if (state.isAdmin && state.editing) {
+      const up = document.createElement("button");
+      up.className = "sort-btn";
+      up.title = "上移分类";
+      up.textContent = "↑";
+      up.onclick = () => moveCategory(cat, -1);
+      const down = document.createElement("button");
+      down.className = "sort-btn";
+      down.title = "下移分类";
+      down.textContent = "↓";
+      down.onclick = () => moveCategory(cat, 1);
+      hBox.append(up, down);
+    }
     const grid = document.createElement("div");
     grid.className = "grid";
     state.services.filter((s) => s.category === cat).forEach((s) => grid.appendChild(card(s)));
-    sec.append(h, grid);
+    sec.append(hBox, grid);
     app.appendChild(sec);
   }
 }
@@ -200,6 +216,14 @@ function card(s) {
   if (state.isAdmin && state.editing) {
     const actions = document.createElement("div");
     actions.className = "actions";
+    const btnUp = document.createElement("button");
+    btnUp.title = "上移";
+    btnUp.textContent = "↑";
+    btnUp.onclick = () => moveCard(s.id, -1);
+    const btnDown = document.createElement("button");
+    btnDown.title = "下移";
+    btnDown.textContent = "↓";
+    btnDown.onclick = () => moveCard(s.id, 1);
     const btnE = document.createElement("button");
     btnE.title = "编辑";
     btnE.textContent = "✎";
@@ -208,10 +232,52 @@ function card(s) {
     btnD.title = "删除";
     btnD.textContent = "🗑";
     btnD.onclick = () => delService(s.id);
-    actions.append(btnE, btnD);
+    actions.append(btnUp, btnDown, btnE, btnD);
     el.appendChild(actions);
   }
   return el;
+}
+
+/* ---------- 排序:卡片 / 分类 ---------- */
+
+function reorderPayload() {
+  const cats = [...new Set(state.services.map((s) => s.category))];
+  const serviceIds = {};
+  for (const c of cats) serviceIds[c] = state.services.filter((s) => s.category === c).map((s) => s.id);
+  return { categories: cats, service_ids: serviceIds };
+}
+
+async function saveOrder() {
+  await api("/api/reorder", { method: "POST", body: JSON.stringify(reorderPayload()) });
+  await load();
+}
+
+function moveCard(id, dir) {
+  const arr = state.services;
+  const idx = arr.findIndex((s) => s.id === id);
+  if (idx < 0) return;
+  const cat = arr[idx].category;
+  let j = idx;
+  if (dir > 0) {
+    j = idx + 1;
+    while (j < arr.length && arr[j].category !== cat) j++;
+  } else {
+    j = idx - 1;
+    while (j >= 0 && arr[j].category !== cat) j--;
+  }
+  if (j < 0 || j >= arr.length) return;
+  [arr[idx], arr[j]] = [arr[j], arr[idx]];
+  saveOrder().catch((e) => alert("排序保存失败: " + e.message));
+}
+
+function moveCategory(catName, dir) {
+  const cats = [...new Set(state.services.map((s) => s.category))];
+  const i = cats.indexOf(catName);
+  const j = i + dir;
+  if (j < 0 || j >= cats.length) return;
+  [cats[i], cats[j]] = [cats[j], cats[i]];
+  state.services.sort((a, b) => cats.indexOf(a.category) - cats.indexOf(b.category));
+  saveOrder().catch((e) => alert("排序保存失败: " + e.message));
 }
 
 function toggleEdit() {
@@ -390,6 +456,31 @@ $("#btn-edit").addEventListener("click", toggleEdit);
 $("#btn-export").addEventListener("click", exportJson);
 $("#btn-import").addEventListener("click", () => $("#file-import").click());
 $("#btn-add").addEventListener("click", openAdd);
+
+/* ---------- 图标缓存管理 ---------- */
+
+$("#btn-clear-icons").addEventListener("click", async () => {
+  if (!confirm("清空全部图标缓存并重新抓取?")) return;
+  try {
+    const r = await api("/api/favicon/all", { method: "DELETE" });
+    alert(`已清除 ${r.cleared} 个图标缓存,重新抓取中…`);
+    await load();
+  } catch (e) {
+    alert("操作失败: " + e.message);
+  }
+});
+
+$("#btn-refresh-icon").addEventListener("click", async () => {
+  const url = form.url.value.trim();
+  if (!url) { alert("请先填写服务地址"); return; }
+  try {
+    const r = await api("/api/favicon?u=" + encodeURIComponent(url), { method: "DELETE" });
+    alert(`图标缓存已清除${r.cleared ? "(" + r.cleared + " 个文件)" : ""},重新抓取中…`);
+    await load();
+  } catch (e) {
+    alert("操作失败: " + e.message);
+  }
+});
 
 init().catch((e) => {
   app.innerHTML = `<div class="empty">加载失败: ${esc(e.message)}</div>`;

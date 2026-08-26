@@ -21,6 +21,7 @@ _pw = None
 _browser = None  # type: ignore[assignment]
 _last_used = 0.0
 _watchdog_task = None  # type: ignore[assignment]
+_launch_lock = asyncio.Lock()
 
 IDLE_TIMEOUT = 30  # 闲置多少秒后自动关闭浏览器
 # 远程 CDP 端点(容器部署时指向浏览器容器);为空则本地拉起 Chromium
@@ -53,19 +54,22 @@ async def _ensure_browser() -> None:
     """懒启动:首次抓取时才连接/拉起浏览器。
 
     设置了 NAVI_BROWSER_CDP 时连接远程浏览器容器(Docker 部署);
-    否则本地拉起 Chromium(裸机部署)。
+    否则本地拉起 Chromium(裸机部署)。并发请求时只启动一次。
     """
     global _pw, _browser
     if _browser is not None:
         return
-    _pw = await async_playwright().start()
-    if CDP_ENDPOINT:
-        _browser = await _pw.chromium.connect_over_cdp(CDP_ENDPOINT)
-    else:
-        _browser = await _pw.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage"],
-        )
+    async with _launch_lock:
+        if _browser is not None:
+            return
+        _pw = await async_playwright().start()
+        if CDP_ENDPOINT:
+            _browser = await _pw.chromium.connect_over_cdp(CDP_ENDPOINT)
+        else:
+            _browser = await _pw.chromium.launch(
+                headless=True,
+                args=["--no-sandbox", "--disable-dev-shm-usage"],
+            )
 
 
 async def _close_browser() -> None:
