@@ -42,6 +42,16 @@ def admin_page():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/sw.js", include_in_schema=False)
+def service_worker():
+    """PWA Service Worker —— 必须位于站点根路径,scope 才能覆盖整个站。"""
+    return FileResponse(
+        STATIC_DIR / "sw.js",
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
 # ---------- 管理认证 ----------
 
 @app.post("/api/admin/login")
