@@ -1,0 +1,4 @@
+builder.moolo.net {
+	tls /opt/caddy/certs/_.moolo.net.crt /opt/caddy/certs/_.moolo.net.key
+	reverse_proxy navi-app:8000
+}

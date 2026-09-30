@@ -1,0 +1,26 @@
+# Navi HTTPS 反向代理(Caddy)
+# 用法: docker compose -f deploy/docker-compose.caddy.yml up -d
+# 前置: 证书已上传到 /opt/caddy/certs/ (_.moolo.net.crt / _.moolo.net.key)
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: navi-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /opt/caddy/config/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/caddy/certs:/opt/caddy/certs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - navi_default
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  navi_default:
+    external: true
