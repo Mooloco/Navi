@@ -39,6 +39,9 @@ async function init() {
   const isAdminPage = location.pathname === "/admin";
   state.isAdmin = isAdminPage;
   document.title = isAdminPage ? "Navi · 管理" : "Navi";
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }
   if (isAdminPage) {
     if (state.token) {
       try {
