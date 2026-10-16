@@ -9,7 +9,7 @@
 - Category-grouped service cards, sortable with ↑↓ buttons (persisted)
 - Sort value mechanism: each card gets a 100~500 sort value (independent per category); new services append to the end (+5 increments), moving picks the mid-value of the target gap, re-balances the category only when no space remains
 - Category rename with a ✎ button in edit mode (services follow automatically)
-- Auto favicon fetching (browser-based in `main` mode) with icon cache management: refresh a single icon / clear all caches
+- Auto favicon fetching (static HTML parsing by default; optional browser rendering) with icon cache management: refresh a single icon / clear all caches
 - Admin auth at `/admin` (default password `admin123` — change it after first login)
 - Web-based CRUD, custom categories, JSON import/export
 - URL scheme auto-completion (`192.168.1.1:8080` → `http://192.168.1.1:8080`)
@@ -19,10 +19,10 @@
 
 | Tag | Description | Size |
 |---|---|---|
-| `main` | Full features: browser-based favicon fetching via a separate `browserless/chrome` container (CDP) | ~442MB |
-| `lite` | Lightweight: no browser, regex-based favicon fetching only | ~246MB |
+| `lite` | **Default.** No browser; static (httpx) favicon fetching only | ~150MB |
+| `main` | Adds Playwright + Chromium for optional browser-rendered favicon fetching (enable with `NAVI_BROWSER=local`) | ~1.5GB |
 
-The app image never bundles a browser kernel — in `main` mode it talks to the `browserless/chrome` container over CDP. Pick `lite` for low-resource machines.
+Favicon fetching uses static HTML parsing by default and needs no browser process. Pick `main` only if a few of your services render their icons with JavaScript — with `NAVI_BROWSER=off` (the default) the bundled Chromium just sits idle.
 
 ## Quick Start (Docker Compose)
 
@@ -38,29 +38,25 @@ cp .env.example .env    # set NAVI_BRANCH / NAVI_PORT
 ```yaml
 services:
   app:
-    image: mooloco/navi:${NAVI_BRANCH:-main}
+    image: mooloco/navi:${NAVI_BRANCH:-lite}
     container_name: navi-app
     ports:
       - "${NAVI_PORT:-8000}:8000"
     environment:
       - MOOLO_NAV_DB=/data/nav.db
       - MOOLO_NAV_CACHE=/data/favicons
-      - NAVI_BROWSER_CDP=ws://browser:3000
+      - NAVI_BROWSER=${NAVI_BROWSER:-off}
     volumes:
       - ${NAVI_DATA:-./data}:/data    # bind mount: host folder -> /data
     restart: unless-stopped
-
-  browser:
-    image: browserless/chrome:latest
-    container_name: navi-browser
-    restart: unless-stopped
-    profiles: ["main"]      # deployed only in main mode
+    mem_limit: ${NAVI_MEM_LIMIT:-768m}
 ```
 
 `.env`:
 
 ```ini
-NAVI_BRANCH=main   # main (full) | lite (lightweight, no browser)
+NAVI_BRANCH=lite   # lite (default, no browser ~150MB) | main (with Chromium ~1.5GB)
+NAVI_BROWSER=off   # off (default) | local (in-process Chromium) | cdp (external browser container)
 NAVI_PORT=8000
 NAVI_DATA=./data   # host folder for data (SQLite + icon cache)
 ```
@@ -68,11 +64,7 @@ NAVI_DATA=./data   # host folder for data (SQLite + icon cache)
 Start:
 
 ```bash
-# main mode: app + browser containers, full icon fetching
-docker compose --profile main up -d
-
-# lite mode: app only, no browser container deployed
-docker compose --profile lite up -d
+docker compose up -d
 ```
 
 Access `http://<host>:8000` — admin page at `/admin` (default password `admin123`, **change it after first login**).
@@ -80,25 +72,27 @@ Access `http://<host>:8000` — admin page at `/admin` (default password `admin1
 ## Single Container (docker run)
 
 ```bash
-# main (for full icon fetching, point NAVI_BROWSER_CDP at your own Chromium service)
-docker run -d --name navi-app -p 8000:8000 \
-  -e NAVI_BROWSER_CDP=ws://browser:3000 \
-  -v navi-data:/data mooloco/navi:main
-
-# lite (standalone, no browser needed)
+# default: standalone, static favicon fetching, no browser needed
 docker run -d --name navi-app -p 8000:8000 \
   -v navi-data:/data mooloco/navi:lite
+
+# with browser rendering (main tag bundles Chromium; enable it via NAVI_BROWSER)
+docker run -d --name navi-app -p 8000:8000 \
+  -e NAVI_BROWSER=local \
+  -v navi-data:/data mooloco/navi:main
 ```
 
 ## Environment Variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `NAVI_BRANCH` | `main` | Compose deployment mode (`main`/`lite`) |
+| `NAVI_BRANCH` | `lite` | Image variant (`lite` = no browser / `main` = bundles Chromium) |
+| `NAVI_BROWSER` | `off` | Browser backend: `off` / `local` (in-process Chromium) / `cdp` |
+| `NAVI_BROWSER_CDP` | (unset) | Remote Chromium CDP/Playwright endpoint, used only when `NAVI_BROWSER=cdp` |
 | `NAVI_PORT` | `8000` | Host port mapping |
+| `NAVI_MEM_LIMIT` | `768m` | Container memory limit |
 | `MOOLO_NAV_DB` | `/data/nav.db` | SQLite database path |
 | `MOOLO_NAV_CACHE` | `/data/favicons` | Favicon cache directory |
-| `NAVI_BROWSER_CDP` | `ws://browser:3000` | Remote Chromium CDP endpoint (main mode only) |
 
 ## Data Persistence
 
@@ -107,7 +101,7 @@ All data (service list + icon cache) lives in the `navi-data` volume at `/data`.
 ## Upgrading
 
 ```bash
-docker compose --profile ${NAVI_BRANCH:-main} up -d --pull always
+docker compose pull && docker compose up -d
 ```
 
 ## Security Note

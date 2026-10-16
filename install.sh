@@ -4,8 +4,9 @@
 #  个人服务导航页 - https://github.com/Mooloco/Navi
 #
 #  用法:
-#    sudo bash install.sh                  # 安装 main 分支(默认,含浏览器图标抓取)
-#    sudo bash install.sh --branch lite    # 安装 lite 分支(无浏览器,更省资源)
+#    sudo bash install.sh                  # 默认:httpx 静态抓取图标,零额外内存
+#    sudo bash install.sh --with-browser   # 额外装 Chromium,启用浏览器渲染抓取(约 400MB)
+#    sudo bash install.sh --branch lite    # 安装 lite 分支(无浏览器代码,更省资源)
 #    sudo bash install.sh --port 8080      # 自定义端口
 #    sudo bash install.sh --dir /srv/navi  # 自定义安装目录
 #
@@ -18,6 +19,7 @@ BRANCH="main"
 PORT="8000"
 INSTALL_DIR="/opt/navi"
 SERVICE="navi"
+WITH_BROWSER=0   # 默认不装 Chromium:图标抓取走 httpx 静态解析
 
 # ---------- 参数解析 ----------
 while [[ $# -gt 0 ]]; do
@@ -26,8 +28,9 @@ while [[ $# -gt 0 ]]; do
     --port)    PORT="$2";   shift 2 ;;
     --dir)     INSTALL_DIR="$2"; shift 2 ;;
     --service) SERVICE="$2"; shift 2 ;;
+    --with-browser) WITH_BROWSER=1; shift ;;
     -h|--help)
-      echo "用法: sudo bash install.sh [--branch main|lite] [--port 8000] [--dir /opt/navi]"
+      echo "用法: sudo bash install.sh [--branch main|lite] [--port 8000] [--dir /opt/navi] [--with-browser]"
       exit 0 ;;
     *) echo "未知参数: $1"; exit 1 ;;
   esac
@@ -78,13 +81,17 @@ fi
 echo "==> 安装 Python 依赖..."
 "$INSTALL_DIR/.venv/bin/pip" install -q -r "$INSTALL_DIR/requirements.txt"
 
-if [[ "$BRANCH" == "main" ]]; then
-  echo "==> 安装 Playwright + Chromium(main 分支浏览器图标抓取需要,首次约 1 分钟)..."
+BROWSER_MODE="off"
+if [[ "$WITH_BROWSER" == "1" ]]; then
+  BROWSER_MODE="local"
+  echo "==> 安装 Playwright + Chromium(浏览器渲染抓取,首次约 1 分钟)..."
   "$INSTALL_DIR/.venv/bin/pip" install -q playwright
   if ! "$INSTALL_DIR/.venv/bin/playwright" install chromium --with-deps 2>/dev/null; then
     echo "==> Chromium 系统依赖安装失败,尝试不带 --with-deps 重试..."
     "$INSTALL_DIR/.venv/bin/playwright" install chromium
   fi
+else
+  echo "==> 跳过浏览器安装(默认 httpx 静态抓取图标;需要时加 --with-browser 重跑)"
 fi
 
 # ---------- systemd 服务 ----------
@@ -97,6 +104,7 @@ After=network.target
 [Service]
 WorkingDirectory=$INSTALL_DIR
 Environment=MOOLO_NAV_DB=$INSTALL_DIR/data/nav.db
+Environment=NAVI_BROWSER=$BROWSER_MODE
 ExecStart=$INSTALL_DIR/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port $PORT
 Restart=always
 RestartSec=3

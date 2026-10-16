@@ -2,38 +2,34 @@
 #  Navi Docker Compose 项目
 #
 #  用法:
-#    1. 复制 .env.example 为 .env,按需修改 NAVI_BRANCH / NAVI_PORT / NAVI_DATA
-#    2. 启动:
-#       main(完整功能,应用 + 浏览器容器):
-#         docker compose --profile main up -d --build
-#       lite(轻量,仅应用容器,浏览器容器不部署):
-#         docker compose --profile lite up -d --build
+#    1. 复制 .env.example 为 .env,按需修改 NAVI_PORT / NAVI_DATA
+#    2. 启动: docker compose up -d --build
 #    3. 访问 http://<主机IP>:8000 ,管理页 /admin(默认密码 admin123)
+#
+#  图标抓取:
+#    默认用 httpx 静态解析(零额外内存),覆盖绝大多数站点。
+#    仅少数「图标由 JS 动态写入」的 SPA 才需要浏览器渲染:
+#      · 推荐 NAVI_BROWSER=local + NAVI_BRANCH=main(进程内 Chromium)
+#      · 或用 deploy/docker-compose.browser.yml 叠加一个 CDP 浏览器容器
 # =============================================================
 
 services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile.${NAVI_BRANCH:-main}
-    image: mooloco/navi:${NAVI_BRANCH:-main}
+      dockerfile: Dockerfile.${NAVI_BRANCH:-lite}
+    image: mooloco/navi:${NAVI_BRANCH:-lite}
     container_name: navi-app
     ports:
       - "${NAVI_PORT:-8000}:8000"
     environment:
       - MOOLO_NAV_DB=/data/nav.db
       - MOOLO_NAV_CACHE=/data/favicons
-      - NAVI_BROWSER_CDP=ws://browser:3000
+      # 浏览器抓取开关:off(默认)/ local / cdp
+      - NAVI_BROWSER=${NAVI_BROWSER:-off}
     volumes:
       # 数据目录:宿主机指定文件夹(SQLite + 图标缓存),默认 ./data
       - ${NAVI_DATA:-./data}:/data
     restart: unless-stopped
-
-  browser:
-    image: browserless/chrome:latest
-    container_name: navi-browser
-    environment:
-      - MAX_CONCURRENT_SESSIONS=2
-      - CONNECTION_TIMEOUT=30000
-    restart: unless-stopped
-    profiles: ["main"]
+    # 内存上限:即便将来再出问题,也是本容器被 OOM 重启,而不是把宿主机拖垮
+    mem_limit: ${NAVI_MEM_LIMIT:-768m}

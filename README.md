@@ -10,7 +10,7 @@
 - **卡片/分类排序** — 编辑模式箭头排序,持久化保存
 - **排序随机数机制** — 每张卡片 100~500 排序值(分类内独立),新服务自动排末尾(+5 递增);移动时自动取区间中间值,仅空间不足时才重排该分类,目标顺序不变
 - **分类重命名** — 编辑模式 ✎ 一键改名,旗下服务自动跟随
-- **自动图标** — 不设图标也能显示网站真实图标(浏览器模拟抓取,失败回落 🔗)
+- **自动图标** — 不设图标也能显示网站真实图标(httpx 静态解析,可选浏览器渲染,失败回落 🔗)
 - **图标缓存管理** — 编辑弹窗一键重新抓取单个图标 / 工具栏一键清空全部图标缓存
 - **管理认证** — `/admin` 密码登录(默认 `admin123`),普通页面只读
 - **网页编辑** — 登录后直接增删改服务,支持新建自定义分类
@@ -22,10 +22,13 @@
 ## 🚀 快速安装(Ubuntu/Debian)
 
 ```bash
-# main 分支(推荐):含浏览器图标抓取,首次安装约 1~2 分钟
+# 默认:图标抓取走 httpx 静态解析,零额外内存(推荐)
 sudo bash install.sh
 
-# lite 分支:无浏览器,更省资源(低配机器用)
+# 需要浏览器渲染抓取时(少数 SPA,额外约 400MB)
+sudo bash install.sh --with-browser
+
+# lite 分支:连浏览器代码都没有,最省资源(低配机器用)
 sudo bash install.sh --branch lite
 
 # 自定义端口
@@ -50,29 +53,25 @@ http://<服务器IP>:8000/admin     ← 管理页(密码 admin123,请立即修�
 ```yaml
 services:
   app:
-    image: mooloco/navi:${NAVI_BRANCH:-main}
+    image: mooloco/navi:${NAVI_BRANCH:-lite}
     container_name: navi-app
     ports:
       - "${NAVI_PORT:-8000}:8000"
     environment:
       - MOOLO_NAV_DB=/data/nav.db
       - MOOLO_NAV_CACHE=/data/favicons
-      - NAVI_BROWSER_CDP=ws://browser:3000
+      - NAVI_BROWSER=${NAVI_BROWSER:-off}
     volumes:
       - ${NAVI_DATA:-./data}:/data    # 数据存宿主机指定文件夹
     restart: unless-stopped
-
-  browser:
-    image: browserless/chrome:latest
-    container_name: navi-browser
-    restart: unless-stopped
-    profiles: ["main"]      # 仅 main 模式部署
+    mem_limit: ${NAVI_MEM_LIMIT:-768m}
 ```
 
-配置 `.env`(可选,默认 main + 8000):
+配置 `.env`(可选,默认 lite + 8000):
 
 ```ini
-NAVI_BRANCH=main   # main(完整)/ lite(轻量,无浏览器)
+NAVI_BRANCH=lite   # lite(默认,无浏览器 ~150MB)/ main(含 Chromium ~1.5GB)
+NAVI_BROWSER=off   # off(默认,httpx 静态抓取)/ local(进程内 Chromium)/ cdp(外部浏览器容器)
 NAVI_PORT=8000
 NAVI_DATA=./data   # 数据目录(宿主机文件夹,SQLite + 图标缓存)
 ```
@@ -80,19 +79,18 @@ NAVI_DATA=./data   # 数据目录(宿主机文件夹,SQLite + 图标缓存)
 启动(不加 `--build`,直接拉取现成镜像):
 
 ```bash
-docker compose --profile main up -d    # main 完整版(应用 + 浏览器容器)
-docker compose --profile lite up -d    # lite 轻量版(仅应用容器)
+docker compose up -d
 ```
 
 升级:
 
 ```bash
-docker compose --profile ${NAVI_BRANCH:-main} up -d --pull always
+docker compose pull && docker compose up -d
 ```
 
 访问 `http://<主机IP>:8000`,管理页 `/admin`(默认密码 `admin123`,请立即修改)。
 
-> 已克隆本仓库的话也可以免构建:先 `docker compose --profile main pull` 拉取现成镜像,再 `docker compose --profile main up -d`(不触发构建)。
+> 已克隆本仓库的话也可以免构建:先 `docker compose pull` 拉取现成镜像,再 `docker compose up -d`(不触发构建)。
 
 ### 方式二:源码构建(需要改代码时)
 
@@ -100,21 +98,22 @@ docker compose --profile ${NAVI_BRANCH:-main} up -d --pull always
 # 1. 拉代码
 git clone https://github.com/Mooloco/Navi.git && cd Navi
 
-# 2. 配置(可选,默认 main + 8000 端口)
+# 2. 配置(可选,默认 lite + 8000 端口)
 cp .env.example .env   # 修改 NAVI_BRANCH / NAVI_PORT
 
 # 3. 启动(带 --build 构建自己的镜像)
-docker compose --profile main up -d --build    # 或 --profile lite
+docker compose up -d --build
 
 # 4. 访问 http://<主机IP>:8000 ,管理页 /admin(默认密码 admin123)
 ```
 
 要点:
 
-- 一个 `.env` 变量 `NAVI_BRANCH` 决定部署形态:main 带浏览器容器,lite 不部署浏览器容器
-- 数据持久化在数据卷 `navi-data`(SQLite + 图标缓存),删容器数据不丢
-- main 模式应用镜像**不含浏览器内核**(~442MB),浏览器功能由独立 `browserless/chrome` 容器经 CDP 提供,可独立升级
-- 升级:重新执行 `docker compose --profile <分支> up -d --build`
+- **图标抓取默认走 httpx 静态解析**,不启动浏览器进程,内存占用可忽略
+- 需要浏览器渲染时设 `NAVI_BROWSER=local`(镜像需 `NAVI_BRANCH=main`,进程内 Chromium,闲置 30s 自动回收)
+- 数据持久化在 `${NAVI_DATA}`(SQLite + 图标缓存),删容器数据不丢
+- `mem_limit` 给容器加了内存上限,异常时是本容器被重启,不会拖垮宿主机
+- 升级:重新执行 `docker compose up -d --build`
 
 ## 🛠 手动部署
 
@@ -125,9 +124,10 @@ cd Navi
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
-# main 分支额外需要浏览器(图标抓取):
+# 可选:浏览器渲染抓取(默认不需要,httpx 静态解析已覆盖绝大多数站点)
 .venv/bin/pip install playwright
 .venv/bin/playwright install chromium --with-deps
+export NAVI_BROWSER=local   # 不设则只用 httpx 静态抓取
 
 .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
@@ -141,12 +141,13 @@ Navi/
 │   ├── auth.py        # 密码哈希 + 会话 token
 │   ├── database.py    # SQLite 存取
 │   ├── favicon.py     # 图标抓取(多层策略 + 缓存)
-│   ├── browser.py     # Playwright 浏览器模拟(main 分支)
+│   ├── browser.py     # Playwright 浏览器模拟(可选,默认关闭)
 │   └── models.py      # 数据模型
 ├── static/            # 前端(原生 HTML/CSS/JS)
 ├── install.sh         # 一键安装脚本
 ├── requirements.txt
-└── Dockerfile         # Docker 版(规划中)
+├── Dockerfile.lite    # Docker 镜像:轻量版(默认,无浏览器)
+└── Dockerfile.main    # Docker 镜像:含 Chromium,可选浏览器渲染抓取
 ```
 
 ## 🔌 API
@@ -175,13 +176,13 @@ Navi/
 
 ## 🌿 分支
 
-- **main**(推荐):浏览器模拟图标抓取(Playwright,按需启动,闲置 30s 自动回收)
-- **lite**:无浏览器,仅轻量正则抓取,资源占用最低
+- **main**(默认):图标抓取走 httpx 静态解析;浏览器渲染为**可选**(Playwright,按需启动,闲置 30s 回收)
+- **lite**:不含浏览器代码,仅轻量静态抓取,资源占用最低
 
 ## 🗺 路线图
 
 - [x] 分类分组导航
-- [x] 自动图标抓取(多层策略 + 浏览器模拟)
+- [x] 自动图标抓取(多层策略 + 可选浏览器渲染)
 - [x] 网页编辑 + JSON 导入/导出
 - [x] 管理认证(/admin 登录、改密码)
 - [x] Docker 镜像 + Compose 部署(main/lite 按分支分流)

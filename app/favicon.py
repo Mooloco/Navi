@@ -206,9 +206,10 @@ async def shutdown() -> None:
 async def fetch_favicon(url: str) -> tuple[bytes, str] | None:
     """返回 (图片字节, 媒体类型);失败返回 None。策略:
     1) 磁盘缓存命中直接返回
-    2) 抓页面 HTML,解析 <link rel="icon"> 声明
-    3) 兜底默认 /favicon.ico
-    4) 全部失败 → 失败缓存,24h 内秒回 None
+    2) 可选浏览器渲染抓取(仅 NAVI_BROWSER 非 off 且装了 Playwright 时)
+    3) 抓页面 HTML,解析 <link rel="icon"> 声明,并顺着同源入口链接继续找
+    4) 兜底探测常见图标路径(含 LuCI 主题)
+    5) 全部失败 → 失败缓存,1 小时内秒回 None
     """
     origin = parse_origin(url)
     if origin is None:
@@ -230,7 +231,7 @@ async def fetch_favicon(url: str) -> tuple[bytes, str] | None:
             pass
         fail.unlink(missing_ok=True)
 
-    # 2. 浏览器模拟(主路径):真实渲染,像浏览器一样解析 favicon
+    # 2. 浏览器渲染抓取(可选):默认关闭,NAVI_BROWSER=off 时这里直接返回 None
     try:
         got = await browser.get_favicon_bytes(url)
         if got:
@@ -240,7 +241,7 @@ async def fetch_favicon(url: str) -> tuple[bytes, str] | None:
     except Exception:
         pass
 
-    # 3. 轻量兜底:抓页面 HTML,解析 icon 声明;没有则追踪入口链接(meta refresh / a href)
+    # 3. 静态解析:抓页面 HTML,解析 icon 声明;没有则追踪入口链接(meta refresh / a href)
     pages = [url] if url.startswith(origin) else [url, origin + "/"]
     page_html = None
     page_url = None
@@ -270,7 +271,7 @@ async def fetch_favicon(url: str) -> tuple[bytes, str] | None:
                     _save_cache(origin, data, ext)
                     return data, EXT_MEDIA[ext]
 
-    # 3. 常见图标路径探测(覆盖 LuCI argon 主题、默认 favicon 等)
+    # 4. 常见图标路径探测(覆盖 LuCI argon 主题、默认 favicon 等)
     for path in COMMON_PATHS:
         got = await _try_download(_client, origin + path)
         if got:
@@ -278,6 +279,6 @@ async def fetch_favicon(url: str) -> tuple[bytes, str] | None:
             _save_cache(origin, data, ext)
             return data, EXT_MEDIA[ext]
 
-    # 4. 记录失败
+    # 5. 记录失败
     fail.write_text(str(time.time()))
     return None

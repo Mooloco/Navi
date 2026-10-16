@@ -1,0 +1,31 @@
+# =============================================================
+#  Navi 可选叠加:CDP 浏览器容器
+#
+#  仅当 NAVI_BROWSER=cdp 时需要。默认部署(httpx 静态抓取)用不到本文件。
+#
+#  用法:
+#    docker compose -f docker-compose.yml -f deploy/docker-compose.browser.yml up -d
+#
+#  ⚠️ 注意:CDP 模式下 Playwright 的 browser.close() 只是断开连接,
+#     并不会关停这个容器。这里靠 TIMEOUT 强制回收会话 + 内存上限兜底。
+#     低配机器更推荐 NAVI_BROWSER=local(进程内 Chromium,close() 能真正回收)。
+# =============================================================
+
+services:
+  app:
+    environment:
+      - NAVI_BROWSER=cdp
+      - NAVI_BROWSER_CDP=ws://browser:3000
+
+  browser:
+    # v2 维护版;旧的 browserless/chrome 已停更两年以上
+    image: ghcr.io/browserless/chromium:latest
+    container_name: navi-browser
+    environment:
+      - CONCURRENT=1
+      - QUEUED=4
+      - TIMEOUT=60000          # 单会话硬上限 60s,到点强制回收 Chrome
+    mem_limit: 1g
+    memswap_limit: 1g          # 不给 swap,超限直接 OOM 自己而不是拖垮宿主机
+    pids_limit: 512            # 防 Chromium 子进程数爆炸
+    restart: unless-stopped
