@@ -5,7 +5,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, browser, database, favicon
+from . import auth, database, favicon
 from .models import AdminLogin, AdminPassword, ServiceCreate, ServiceUpdate
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -17,14 +17,12 @@ async def lifespan(app: FastAPI):
     database.init_db()
     auth.ensure_default_password()
     database.migrate_sort_values()  # 旧数据排序值迁移(10~200 随机数)
-    await browser.startup()  # 挂 watchdog,按需拉起/闲置回收浏览器
     await favicon.startup()
     yield
     await favicon.shutdown()
-    await browser.shutdown()
 
 
-app = FastAPI(title="Navi", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Navi", version="3.0.0", lifespan=lifespan)
 
 
 def require_admin(authorization: str | None = Header(None)):
